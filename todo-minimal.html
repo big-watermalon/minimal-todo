@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>极简待办清单</title>
+    <style>
+      :root {
+        --bg: #0b0d10;
+        --panel: #10141a;
+        --panel-2: #0f1318;
+        --text: #e8edf3;
+        --muted: #9aa4af;
+        --border: rgba(255, 255, 255, 0.08);
+        --accent: #ffffff;
+        --danger: #ff4d4d;
+        --focus: rgba(255, 255, 255, 0.14);
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji",
+          "Segoe UI Emoji";
+        background: radial-gradient(1200px 600px at 50% -10%, rgba(255, 255, 255, 0.08), transparent 55%), var(--bg);
+        color: var(--text);
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+
+      .app {
+        width: min(560px, 92vw);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 35%), var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+      }
+
+      header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+      h1 {
+        font-size: 18px;
+        margin: 0;
+        letter-spacing: 0.5px;
+        font-weight: 650;
+      }
+      .hint {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+        margin-bottom: 14px;
+      }
+
+      input[type="text"] {
+        width: 100%;
+        padding: 12px 12px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: var(--panel-2);
+        color: var(--text);
+        outline: none;
+        transition: border-color 120ms ease, box-shadow 120ms ease;
+      }
+      input[type="text"]::placeholder { color: rgba(232, 237, 243, 0.45); }
+      input[type="text"]:focus {
+        border-color: rgba(255, 255, 255, 0.18);
+        box-shadow: 0 0 0 4px var(--focus);
+      }
+
+      button {
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--text);
+        border-radius: 12px;
+        padding: 12px 14px;
+        cursor: pointer;
+        transition: transform 80ms ease, background 120ms ease, border-color 120ms ease, opacity 120ms ease;
+        user-select: none;
+        white-space: nowrap;
+      }
+      button:hover { background: rgba(255, 255, 255, 0.10); }
+      button:active { transform: translateY(1px); }
+      button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+      .list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 8px;
+      }
+
+      .item {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 10px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .check {
+        width: 18px;
+        height: 18px;
+        accent-color: var(--accent);
+        cursor: pointer;
+      }
+
+      .text {
+        font-size: 14px;
+        line-height: 1.25;
+        word-break: break-word;
+      }
+      .done .text {
+        color: rgba(232, 237, 243, 0.55);
+        text-decoration: line-through;
+      }
+
+      .delete {
+        padding: 8px 10px;
+        border-radius: 10px;
+        background: rgba(255, 77, 77, 0.08);
+        border-color: rgba(255, 77, 77, 0.20);
+        color: rgba(255, 210, 210, 0.95);
+      }
+      .delete:hover { background: rgba(255, 77, 77, 0.12); }
+
+      footer {
+        margin-top: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .clear {
+        padding: 8px 10px;
+        border-radius: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app" aria-label="待办清单">
+      <header>
+        <h1>待办</h1>
+        <p class="hint">Enter 添加 · 勾选完成 · 可删除</p>
+      </header>
+
+      <section class="row" aria-label="添加待办">
+        <input id="todoInput" type="text" placeholder="写点什么…" autocomplete="off" maxlength="200" />
+        <button id="addBtn" type="button">添加</button>
+      </section>
+
+      <ul id="list" class="list" aria-label="待办列表"></ul>
+
+      <footer>
+        <span id="counter">0 项</span>
+        <button id="clearDoneBtn" class="clear" type="button" disabled>清除已完成</button>
+      </footer>
+    </main>
+
+    <script>
+      const input = document.getElementById("todoInput");
+      const addBtn = document.getElementById("addBtn");
+      const list = document.getElementById("list");
+      const counter = document.getElementById("counter");
+      const clearDoneBtn = document.getElementById("clearDoneBtn");
+
+      /** @type {{id: string, text: string, done: boolean}[]} */
+      let todos = load();
+      render();
+
+      function uid() {
+        // 足够用的短 id（无后端场景）
+        return Math.random().toString(16).slice(2) + Date.now().toString(16);
+      }
+
+      function load() {
+        try {
+          const raw = localStorage.getItem("minimal_todos_v1");
+          const parsed = raw ? JSON.parse(raw) : [];
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      }
+
+      function save() {
+        localStorage.setItem("minimal_todos_v1", JSON.stringify(todos));
+      }
+
+      function addTodo(text) {
+        const t = text.trim();
+        if (!t) return;
+        todos.unshift({ id: uid(), text: t, done: false });
+        save();
+        render();
+      }
+
+      function toggleTodo(id) {
+        const item = todos.find((t) => t.id === id);
+        if (!item) return;
+        item.done = !item.done;
+        save();
+        render();
+      }
+
+      function deleteTodo(id) {
+        todos = todos.filter((t) => t.id !== id);
+        save();
+        render();
+      }
+
+      function clearDone() {
+        todos = todos.filter((t) => !t.done);
+        save();
+        render();
+      }
+
+      function render() {
+        list.innerHTML = "";
+        for (const t of todos) {
+          const li = document.createElement("li");
+          li.className = "item" + (t.done ? " done" : "");
+          li.dataset.id = t.id;
+
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.className = "check";
+          checkbox.checked = t.done;
+          checkbox.addEventListener("change", () => toggleTodo(t.id));
+
+          const text = document.createElement("div");
+          text.className = "text";
+          text.textContent = t.text;
+
+          const del = document.createElement("button");
+          del.type = "button";
+          del.className = "delete";
+          del.textContent = "删除";
+          del.addEventListener("click", () => deleteTodo(t.id));
+
+          li.append(checkbox, text, del);
+          list.appendChild(li);
+        }
+
+        const total = todos.length;
+        const doneCount = todos.filter((t) => t.done).length;
+        counter.textContent = `${total} 项（已完成 ${doneCount}）`;
+        clearDoneBtn.disabled = doneCount === 0;
+      }
+
+      addBtn.addEventListener("click", () => {
+        addTodo(input.value);
+        input.value = "";
+        input.focus();
+      });
+
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") addBtn.click();
+      });
+
+      clearDoneBtn.addEventListener("click", clearDone);
+    </script>
+  </body>
+</html>
